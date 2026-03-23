@@ -1,50 +1,49 @@
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { AlertTriangle, Plus, Clock } from "lucide-react-native";
-import { colors, spacing, borderRadius, shadows, typography, statusColors } from "../../src/theme";
+import { useIsFocused } from "@react-navigation/native";
+import { router } from "expo-router";
+import { Plus, Clock } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import {
+  colors,
+  spacing,
+  borderRadius,
+  shadows,
+  typography,
+  statusColors,
+} from "../../src/theme";
 import type { ComplianceStatus } from "../../src/theme";
+import type { Deviation } from "../../src/types";
+import * as storageService from "../../src/services/storageService";
 
-interface DeviationSummary {
-  id: string;
-  title: string;
-  severity: ComplianceStatus;
-  status: "open" | "in_progress" | "closed";
-  reportedAt: string;
-  assignedTo?: string;
-}
+type FilterValue = "all" | "open" | "in_progress" | "closed";
 
-const DEMO_DEVIATIONS: DeviationSummary[] = [
-  {
-    id: "1",
-    title: "Kjøleskap 2 over grenseverdi",
-    severity: "critical",
-    status: "open",
-    reportedAt: "I dag, 10:30",
-  },
-  {
-    id: "2",
-    title: "Manglende merking på varelageret",
-    severity: "warning",
-    status: "in_progress",
-    reportedAt: "I går",
-    assignedTo: "Anders",
-  },
+const FILTERS: { value: FilterValue; label: string }[] = [
+  { value: "all", label: "Alle" },
+  { value: "open", label: "Åpne" },
+  { value: "in_progress", label: "Under behandling" },
+  { value: "closed", label: "Lukket" },
 ];
 
-function StatusChip({ label, active }: { label: string; active: boolean }) {
+function StatusChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
-      style={[
-        styles.chip,
-        active && styles.chipActive,
-      ]}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      style={[styles.chip, active && styles.chipActive]}
     >
-      <Text
-        style={[
-          styles.chipText,
-          active && styles.chipTextActive,
-        ]}
-      >
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>
         {label}
       </Text>
     </Pressable>
@@ -52,10 +51,17 @@ function StatusChip({ label, active }: { label: string; active: boolean }) {
 }
 
 function SeverityBadge({ severity }: { severity: ComplianceStatus }) {
-  const label = severity === "critical" ? "Kritisk" : severity === "warning" ? "Advarsel" : "OK";
+  const label =
+    severity === "critical"
+      ? "Kritisk"
+      : severity === "warning"
+        ? "Advarsel"
+        : "OK";
 
   return (
-    <View style={[styles.badge, { backgroundColor: `${statusColors[severity]}20` }]}>
+    <View
+      style={[styles.badge, { backgroundColor: `${statusColors[severity]}20` }]}
+    >
       <Text style={[styles.badgeText, { color: statusColors[severity] }]}>
         {label}
       </Text>
@@ -63,26 +69,53 @@ function SeverityBadge({ severity }: { severity: ComplianceStatus }) {
   );
 }
 
-function DeviationCard({ item }: { item: DeviationSummary }) {
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Nå";
+  if (minutes < 60) return `${minutes} min siden`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}t siden`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "I går";
+  return `${days}d siden`;
+}
+
+function DeviationCard({
+  deviation,
+  onPress,
+}: {
+  deviation: Deviation;
+  onPress: () => void;
+}) {
   const statusLabel =
-    item.status === "open"
+    deviation.status === "open"
       ? "Åpen"
-      : item.status === "in_progress"
+      : deviation.status === "in_progress"
         ? "Under behandling"
         : "Lukket";
 
   return (
-    <Pressable style={styles.card} accessibilityRole="button">
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
       <View style={styles.cardHeader}>
-        <SeverityBadge severity={item.severity} />
+        <SeverityBadge severity={deviation.severity} />
         <Text style={styles.statusText}>{statusLabel}</Text>
       </View>
-      <Text style={styles.cardTitle}>{item.title}</Text>
+      <Text style={styles.cardTitle}>{deviation.description}</Text>
       <View style={styles.cardFooter}>
         <Clock size={14} color={colors.textMuted} strokeWidth={1.5} />
-        <Text style={styles.cardTime}>{item.reportedAt}</Text>
-        {item.assignedTo && (
-          <Text style={styles.cardAssigned}>→ {item.assignedTo}</Text>
+        <Text style={styles.cardTime}>
+          {formatRelativeTime(deviation.reportedAt)}
+        </Text>
+        {deviation.category && (
+          <Text style={styles.cardCategory}>{deviation.category}</Text>
         )}
       </View>
     </Pressable>
@@ -91,34 +124,65 @@ function DeviationCard({ item }: { item: DeviationSummary }) {
 
 export default function DeviationsScreen() {
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const [deviations, setDeviations] = useState<Deviation[]>([]);
+  const [filter, setFilter] = useState<FilterValue>("all");
+
+  const loadData = useCallback(async () => {
+    const loaded = await storageService.getDeviations();
+    setDeviations(loaded);
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      void loadData();
+    }
+  }, [isFocused, loadData]);
+
+  const filtered =
+    filter === "all"
+      ? deviations
+      : deviations.filter((d) => d.status === filter);
+
+  const openCount = deviations.filter((d) => d.status !== "closed").length;
 
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <Text style={styles.title}>Avvik</Text>
-        <Text style={styles.subtitle}>
-          {DEMO_DEVIATIONS.filter((d) => d.status !== "closed").length} åpne avvik
-        </Text>
+        <Text style={styles.subtitle}>{openCount} åpne avvik</Text>
       </View>
 
-      {/* Filter chips */}
       <View style={styles.filters}>
-        <StatusChip label="Alle" active={true} />
-        <StatusChip label="Åpne" active={false} />
-        <StatusChip label="Under behandling" active={false} />
-        <StatusChip label="Lukket" active={false} />
+        {FILTERS.map((f) => (
+          <StatusChip
+            key={f.value}
+            label={f.label}
+            active={filter === f.value}
+            onPress={() => setFilter(f.value)}
+          />
+        ))}
       </View>
 
       <FlatList
-        data={DEMO_DEVIATIONS}
+        data={filtered}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => <DeviationCard item={item} />}
+        renderItem={({ item }) => (
+          <DeviationCard
+            deviation={item}
+            onPress={() => router.push(`/deviation/${item.id}`)}
+          />
+        )}
       />
 
       {/* FAB */}
       <Pressable
         style={[styles.fab, { bottom: insets.bottom + 24 }]}
+        onPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push("/deviation/new");
+        }}
         accessibilityLabel="Meld nytt avvik"
         accessibilityRole="button"
       >
@@ -185,6 +249,10 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     ...shadows.sm,
   },
+  cardPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -221,7 +289,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.caption,
     color: colors.textMuted,
   },
-  cardAssigned: {
+  cardCategory: {
     fontFamily: typography.fonts.medium,
     fontSize: typography.sizes.caption,
     color: colors.primary,
