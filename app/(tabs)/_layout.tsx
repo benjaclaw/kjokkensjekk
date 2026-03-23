@@ -4,6 +4,7 @@ import {
   Thermometer,
   ClipboardCheck,
   AlertTriangle,
+  BarChart3,
 } from "lucide-react-native";
 import { colors } from "../../src/theme";
 
@@ -59,6 +60,15 @@ export default function TabLayout() {
           title: "Avvik",
           tabBarIcon: ({ color, size }) => (
             <AlertTriangle size={size} color={color} strokeWidth={1.5} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="overview"
+        options={{
+          title: "Oversikt",
+          tabBarIcon: ({ color, size }) => (
+            <BarChart3 size={size} color={color} strokeWidth={1.5} />
           ),
         }}
       />
