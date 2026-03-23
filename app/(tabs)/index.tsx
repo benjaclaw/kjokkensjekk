@@ -1,8 +1,7 @@
-import { useState, useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
 import {
   Thermometer,
   ClipboardCheck,
@@ -11,16 +10,7 @@ import {
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
-import * as storageService from "../../src/services/storageService";
-
-interface Stats {
-  complianceScore: number;
-  devicesOk: number;
-  devicesTotal: number;
-  checklistsDoneToday: number;
-  checklistsTotal: number;
-  openDeviations: number;
-}
+import { useAppStore } from "../../src/stores/appStore";
 
 function ComplianceScore({ score }: { score: number }) {
   const statusColor =
@@ -76,16 +66,13 @@ function StatRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-async function computeStats(): Promise<Stats> {
-  const [devices, entries, deviations] = await Promise.all([
-    storageService.getDevices(),
-    storageService.getChecklistEntries(),
-    storageService.getDeviations(),
-  ]);
+function useComputedStats() {
+  const devices = useAppStore((s) => s.devices);
+  const entries = useAppStore((s) => s.entries);
+  const deviations = useAppStore((s) => s.deviations);
+  const checklists = useAppStore((s) => s.checklists);
 
-  const devicesOk = devices.filter(
-    (d) => d.lastReading?.status === "ok",
-  ).length;
+  const devicesOk = devices.filter((d) => d.lastReading?.status === "ok").length;
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -95,17 +82,14 @@ async function computeStats(): Promise<Stats> {
     (e) => e.status === "completed" && (e.completedAt ?? 0) >= todayMs,
   ).length;
 
-  const templates = await storageService.getChecklistTemplates();
-
   const openDeviations = deviations.filter((d) => d.status !== "closed").length;
   const totalDeviations = deviations.length;
   const closedDeviations = totalDeviations - openDeviations;
 
-  // Compliance: weighted average of temp OK + checklists done + deviations closed
   const tempScore = devices.length > 0 ? (devicesOk / devices.length) * 100 : 100;
   const checklistScore =
-    templates.length > 0
-      ? (checklistsDoneToday / templates.length) * 100
+    checklists.length > 0
+      ? (checklistsDoneToday / checklists.length) * 100
       : 100;
   const deviationScore =
     totalDeviations > 0
@@ -121,29 +105,14 @@ async function computeStats(): Promise<Stats> {
     devicesOk,
     devicesTotal: devices.length,
     checklistsDoneToday,
-    checklistsTotal: templates.length,
+    checklistsTotal: checklists.length,
     openDeviations,
   };
 }
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
-  const [stats, setStats] = useState<Stats>({
-    complianceScore: 0,
-    devicesOk: 0,
-    devicesTotal: 0,
-    checklistsDoneToday: 0,
-    checklistsTotal: 0,
-    openDeviations: 0,
-  });
-
-  useEffect(() => {
-    if (isFocused) {
-      void computeStats().then(setStats);
-    }
-  }, [isFocused]);
-
+  const stats = useComputedStats();
   const greeting = getGreeting();
 
   return (

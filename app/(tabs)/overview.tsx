@@ -1,8 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useMemo } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
-import { router } from "expo-router";
 import {
   Thermometer,
   ClipboardCheck,
@@ -17,15 +15,7 @@ import {
   shadows,
   typography,
 } from "../../src/theme";
-import * as storageService from "../../src/services/storageService";
-
-interface OverviewStats {
-  complianceScore: number;
-  tempsLoggedThisWeek: number;
-  checklistsCompletedThisWeek: number;
-  deviationsThisWeek: number;
-  openDeviations: number;
-}
+import { useAppStore } from "../../src/stores/appStore";
 
 function ComplianceScoreLarge({ score }: { score: number }) {
   const statusColor =
@@ -69,85 +59,69 @@ function StatCard({
 
 export default function OverviewScreen() {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
-  const [stats, setStats] = useState<OverviewStats>({
-    complianceScore: 0,
-    tempsLoggedThisWeek: 0,
-    checklistsCompletedThisWeek: 0,
-    deviationsThisWeek: 0,
-    openDeviations: 0,
-  });
+  const devices = useAppStore((s) => s.devices);
+  const readings = useAppStore((s) => s.readings);
+  const entries = useAppStore((s) => s.entries);
+  const deviations = useAppStore((s) => s.deviations);
+  const checklists = useAppStore((s) => s.checklists);
 
-  useEffect(() => {
-    if (!isFocused) return;
-    void (async () => {
-      const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const stats = useMemo(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-      const [devices, readings, entries, deviations, templates] =
-        await Promise.all([
-          storageService.getDevices(),
-          storageService.getReadings(),
-          storageService.getChecklistEntries(),
-          storageService.getDeviations(),
-          storageService.getChecklistTemplates(),
-        ]);
+    const tempsLoggedThisWeek = readings.filter(
+      (r) => r.recordedAt >= weekAgo,
+    ).length;
 
-      const tempsLoggedThisWeek = readings.filter(
-        (r) => r.recordedAt >= weekAgo,
-      ).length;
+    const checklistsCompletedThisWeek = entries.filter(
+      (e) => e.status === "completed" && (e.completedAt ?? 0) >= weekAgo,
+    ).length;
 
-      const checklistsCompletedThisWeek = entries.filter(
-        (e) =>
-          e.status === "completed" && (e.completedAt ?? 0) >= weekAgo,
-      ).length;
+    const deviationsThisWeek = deviations.filter(
+      (d) => d.reportedAt >= weekAgo,
+    ).length;
 
-      const deviationsThisWeek = deviations.filter(
-        (d) => d.reportedAt >= weekAgo,
-      ).length;
+    const openDeviations = deviations.filter(
+      (d) => d.status !== "closed",
+    ).length;
 
-      const openDeviations = deviations.filter(
-        (d) => d.status !== "closed",
-      ).length;
+    const devicesOk = devices.filter(
+      (d) => d.lastReading?.status === "ok",
+    ).length;
 
-      const devicesOk = devices.filter(
-        (d) => d.lastReading?.status === "ok",
-      ).length;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const checklistsDoneToday = entries.filter(
+      (e) =>
+        e.status === "completed" &&
+        (e.completedAt ?? 0) >= todayStart.getTime(),
+    ).length;
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const checklistsDoneToday = entries.filter(
-        (e) =>
-          e.status === "completed" &&
-          (e.completedAt ?? 0) >= todayStart.getTime(),
-      ).length;
+    const totalDeviations = deviations.length;
+    const closedDeviations = totalDeviations - openDeviations;
 
-      const totalDeviations = deviations.length;
-      const closedDeviations = totalDeviations - openDeviations;
+    const tempScore =
+      devices.length > 0 ? (devicesOk / devices.length) * 100 : 100;
+    const checklistScore =
+      checklists.length > 0
+        ? (checklistsDoneToday / checklists.length) * 100
+        : 100;
+    const deviationScore =
+      totalDeviations > 0
+        ? (closedDeviations / totalDeviations) * 100
+        : 100;
 
-      const tempScore =
-        devices.length > 0 ? (devicesOk / devices.length) * 100 : 100;
-      const checklistScore =
-        templates.length > 0
-          ? (checklistsDoneToday / templates.length) * 100
-          : 100;
-      const deviationScore =
-        totalDeviations > 0
-          ? (closedDeviations / totalDeviations) * 100
-          : 100;
+    const complianceScore = Math.round(
+      tempScore * 0.4 + checklistScore * 0.3 + deviationScore * 0.3,
+    );
 
-      const complianceScore = Math.round(
-        tempScore * 0.4 + checklistScore * 0.3 + deviationScore * 0.3,
-      );
-
-      setStats({
-        complianceScore: Math.min(100, Math.max(0, complianceScore)),
-        tempsLoggedThisWeek,
-        checklistsCompletedThisWeek,
-        deviationsThisWeek,
-        openDeviations,
-      });
-    })();
-  }, [isFocused]);
+    return {
+      complianceScore: Math.min(100, Math.max(0, complianceScore)),
+      tempsLoggedThisWeek,
+      checklistsCompletedThisWeek,
+      deviationsThisWeek,
+      openDeviations,
+    };
+  }, [devices, readings, entries, deviations, checklists]);
 
   return (
     <ScrollView

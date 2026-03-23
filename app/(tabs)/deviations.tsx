@@ -1,7 +1,6 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Plus, Clock } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -15,7 +14,7 @@ import {
 } from "../../src/theme";
 import type { ComplianceStatus } from "../../src/theme";
 import type { Deviation } from "../../src/types";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 type FilterValue = "all" | "open" | "in_progress" | "closed";
 
@@ -124,27 +123,21 @@ function DeviationCard({
 
 export default function DeviationsScreen() {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
-  const [deviations, setDeviations] = useState<Deviation[]>([]);
+  const deviations = useAppStore((s) => s.deviations);
   const [filter, setFilter] = useState<FilterValue>("all");
 
-  const loadData = useCallback(async () => {
-    const loaded = await storageService.getDeviations();
-    setDeviations(loaded);
-  }, []);
+  const filtered = useMemo(
+    () =>
+      filter === "all"
+        ? deviations
+        : deviations.filter((d) => d.status === filter),
+    [deviations, filter],
+  );
 
-  useEffect(() => {
-    if (isFocused) {
-      void loadData();
-    }
-  }, [isFocused, loadData]);
-
-  const filtered =
-    filter === "all"
-      ? deviations
-      : deviations.filter((d) => d.status === filter);
-
-  const openCount = deviations.filter((d) => d.status !== "closed").length;
+  const openCount = useMemo(
+    () => deviations.filter((d) => d.status !== "closed").length,
+    [deviations],
+  );
 
   return (
     <View style={styles.screen}>

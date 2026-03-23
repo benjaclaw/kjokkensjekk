@@ -1,9 +1,16 @@
-import { useState, useCallback, useEffect } from "react";
-import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
+import { useState, useMemo } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  RefreshControl,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { ClipboardCheck, ChevronRight } from "lucide-react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   colors,
   spacing,
@@ -13,7 +20,7 @@ import {
 } from "../../src/theme";
 import { ProgressBar } from "../../src/components/ui";
 import type { ChecklistTemplate, ChecklistEntry } from "../../src/types";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 interface ChecklistRow {
   template: ChecklistTemplate;
@@ -77,31 +84,19 @@ function formatRelativeTime(timestamp: number): string {
 
 export default function ChecklistsScreen() {
   const insets = useSafeAreaInsets();
-  const isFocused = useIsFocused();
-  const [rows, setRows] = useState<ChecklistRow[]>([]);
+  const checklists = useAppStore((s) => s.checklists);
+  const entries = useAppStore((s) => s.entries);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
-    const [templates, entries] = await Promise.all([
-      storageService.getChecklistTemplates(),
-      storageService.getChecklistEntries(),
-    ]);
-
-    const mapped: ChecklistRow[] = templates.map((template) => {
+  const rows = useMemo<ChecklistRow[]>(() => {
+    return checklists.map((template) => {
       const templateEntries = entries.filter(
         (e) => e.templateId === template.id,
       );
-      const lastEntry = templateEntries[0]; // entries are sorted newest first
+      const lastEntry = templateEntries[0];
       return { template, lastEntry };
     });
-
-    setRows(mapped);
-  }, []);
-
-  useEffect(() => {
-    if (isFocused) {
-      void loadData();
-    }
-  }, [isFocused, loadData]);
+  }, [checklists, entries]);
 
   return (
     <View style={styles.screen}>
@@ -116,6 +111,16 @@ export default function ChecklistsScreen() {
         data={rows}
         keyExtractor={(item) => item.template.id}
         contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              setTimeout(() => setRefreshing(false), 300);
+            }}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <ChecklistCard
             row={item}

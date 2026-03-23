@@ -22,7 +22,7 @@ import {
 } from "../../src/theme";
 import type { ComplianceStatus } from "../../src/theme";
 import { Button } from "../../src/components/ui";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 const CATEGORIES = [
   "Temperatur",
@@ -85,6 +85,8 @@ function ChipSelect<T extends string>({
 
 export default function NewDeviationScreen() {
   const insets = useSafeAreaInsets();
+  const addDeviation = useAppStore((s) => s.addDeviation);
+  const activeUser = useAppStore((s) => s.activeUser);
   const [category, setCategory] = useState<string | null>(null);
   const [severity, setSeverity] = useState<ComplianceStatus | null>(null);
   const [description, setDescription] = useState("");
@@ -97,12 +99,12 @@ export default function NewDeviationScreen() {
     if (!canSave || !category || !severity) return;
     setSaving(true);
 
-    await storageService.saveDeviation({
+    await addDeviation({
       category,
       severity,
       description: description.trim(),
       correctiveAction: correctiveAction.trim() || undefined,
-      reportedBy: "Bruker",
+      reportedBy: activeUser,
       reportedAt: Date.now(),
       status: "open",
     });
@@ -110,7 +112,7 @@ export default function NewDeviationScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
     router.back();
-  }, [canSave, category, severity, description, correctiveAction]);
+  }, [canSave, category, severity, description, correctiveAction, addDeviation, activeUser]);
 
   return (
     <View style={styles.screen}>

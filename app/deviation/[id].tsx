@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,11 +17,10 @@ import {
   borderRadius,
   shadows,
   typography,
-  statusColors,
 } from "../../src/theme";
 import { StatusBadge, Button } from "../../src/components/ui";
 import type { Deviation } from "../../src/types";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 function formatDate(ts: number): string {
   const d = new Date(ts);
@@ -37,18 +36,15 @@ function formatDate(ts: number): string {
 export default function DeviationDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const [deviation, setDeviation] = useState<Deviation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const deviations = useAppStore((s) => s.deviations);
+  const updateDeviationStore = useAppStore((s) => s.updateDeviation);
+  const activeUser = useAppStore((s) => s.activeUser);
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
-      const deviations = await storageService.getDeviations();
-      const found = deviations.find((d) => d.id === id);
-      setDeviation(found ?? null);
-      setLoading(false);
-    })();
-  }, [id]);
+  const deviation = useMemo(
+    () => deviations.find((d) => d.id === id) ?? null,
+    [deviations, id],
+  );
 
   const updateStatus = useCallback(
     async (newStatus: Deviation["status"]) => {
@@ -57,23 +53,14 @@ export default function DeviationDetailScreen() {
       const updates: Partial<Deviation> = { status: newStatus };
       if (newStatus === "closed") {
         updates.closedAt = Date.now();
-        updates.closedBy = "Bruker";
+        updates.closedBy = activeUser;
       }
-      await storageService.updateDeviation(deviation.id, updates);
+      await updateDeviationStore(deviation.id, updates);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setDeviation({ ...deviation, ...updates });
       setUpdating(false);
     },
-    [deviation],
+    [deviation, updateDeviationStore, activeUser],
   );
-
-  if (loading) {
-    return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
 
   if (!deviation) {
     return (

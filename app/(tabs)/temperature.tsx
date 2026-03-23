@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,17 +7,18 @@ import {
   Pressable,
   Modal,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Snowflake, Thermometer, X, ListChecks } from "lucide-react-native";
+import { Snowflake, Thermometer, X } from "lucide-react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
-import { statusColors } from "../../src/theme";
-import type { TemperatureDevice, TemperatureReading } from "../../src/types";
 import type { ComplianceStatus } from "../../src/theme";
+import type { TemperatureDevice } from "../../src/types";
 import { Button } from "../../src/components/ui";
 import { TemperatureInput } from "../../src/components/features/TemperatureInput";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 function DeviceIcon({ type }: { type: TemperatureDevice["type"] }) {
   if (type === "freezer") {
@@ -100,21 +101,15 @@ function getStatus(
 
 export default function TemperatureScreen() {
   const insets = useSafeAreaInsets();
-  const [devices, setDevices] = useState<TemperatureDevice[]>([]);
+  const devices = useAppStore((s) => s.devices);
+  const addReading = useAppStore((s) => s.addReading);
+  const activeUser = useAppStore((s) => s.activeUser);
   const [selectedDevice, setSelectedDevice] = useState<TemperatureDevice | null>(null);
   const [tempValue, setTempValue] = useState(0);
   const [saving, setSaving] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [batchIndex, setBatchIndex] = useState(0);
-
-  const loadDevices = useCallback(async () => {
-    const loaded = await storageService.getDevices();
-    setDevices(loaded);
-  }, []);
-
-  useEffect(() => {
-    void loadDevices();
-  }, [loadDevices]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const openDevice = useCallback((device: TemperatureDevice) => {
     setSelectedDevice(device);
@@ -131,11 +126,11 @@ export default function TemperatureScreen() {
     if (!selectedDevice) return;
     setSaving(true);
     const status = getStatus(tempValue, selectedDevice.minTemp, selectedDevice.maxTemp);
-    await storageService.saveReading({
+    await addReading({
       deviceId: selectedDevice.id,
       temperature: Math.round(tempValue * 10) / 10,
       status,
-      recordedBy: "Bruker",
+      recordedBy: activeUser,
       recordedAt: Date.now(),
     });
     void Haptics.notificationAsync(
@@ -143,10 +138,8 @@ export default function TemperatureScreen() {
         ? Haptics.NotificationFeedbackType.Success
         : Haptics.NotificationFeedbackType.Warning,
     );
-    await loadDevices();
     setSaving(false);
 
-    // Batch mode: go to next device
     if (batchMode) {
       const nextIndex = batchIndex + 1;
       if (nextIndex < devices.length) {
@@ -160,7 +153,7 @@ export default function TemperatureScreen() {
     } else {
       closeModal();
     }
-  }, [selectedDevice, tempValue, batchMode, batchIndex, devices, loadDevices, closeModal]);
+  }, [selectedDevice, tempValue, batchMode, batchIndex, devices, addReading, activeUser, closeModal]);
 
   const startBatch = useCallback(() => {
     if (devices.length === 0) return;
@@ -189,14 +182,37 @@ export default function TemperatureScreen() {
         </View>
       )}
 
-      <FlatList
-        data={devices}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <DeviceCard device={item} onPress={() => openDevice(item)} />
-        )}
-      />
+      {devices.length === 0 ? (
+        <View style={styles.center}>
+          <Thermometer size={48} color={colors.textMuted} strokeWidth={1} />
+          <Text style={styles.emptyText}>Ingen enheter registrert</Text>
+          <Text style={styles.emptySubtext}>
+            Enheter vil vises her etter oppsett
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={devices}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                // Data is reactive via Zustand, just toggle refreshing
+                setTimeout(() => setRefreshing(false), 300);
+              }}
+              tintColor={colors.primary}
+            />
+          }
+          renderItem={({ item, index }) => (
+            <Animated.View entering={FadeInDown.delay(index * 80).duration(300)}>
+              <DeviceCard device={item} onPress={() => openDevice(item)} />
+            </Animated.View>
+          )}
+        />
+      )}
 
       {/* Temperature input modal */}
       <Modal
@@ -334,6 +350,22 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+  },
+  emptyText: {
+    fontFamily: typography.fonts.semibold,
+    fontSize: typography.sizes.body,
+    color: colors.textMuted,
+  },
+  emptySubtext: {
+    fontFamily: typography.fonts.regular,
+    fontSize: typography.sizes.small,
+    color: colors.textMuted,
   },
   // Modal
   modalContent: {

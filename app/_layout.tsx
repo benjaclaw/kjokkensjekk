@@ -14,11 +14,13 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { colors } from "../src/theme";
-import { seedDemoData } from "../src/services/storageService";
+import { useAppStore } from "../src/stores/appStore";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
+  const hydrate = useAppStore((s) => s.hydrate);
+  const hydrated = useAppStore((s) => s.hydrated);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -28,8 +30,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);
-    void seedDemoData();
-  }, []);
+    void hydrate();
+  }, [hydrate]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -37,7 +39,7 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError || !hydrated) {
     return <View style={styles.loading} />;
   }
 

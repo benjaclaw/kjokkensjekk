@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -22,11 +22,10 @@ import {
 } from "../../src/theme";
 import { ProgressBar, Button } from "../../src/components/ui";
 import type {
-  ChecklistTemplate,
   ChecklistItemTemplate,
   CompletedChecklistItem,
 } from "../../src/types";
-import * as storageService from "../../src/services/storageService";
+import { useAppStore } from "../../src/stores/appStore";
 
 interface ItemState {
   result: "ok" | "deviation" | null;
@@ -117,24 +116,27 @@ function ChecklistItem({
 export default function ChecklistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const [template, setTemplate] = useState<ChecklistTemplate | null>(null);
+  const checklists = useAppStore((s) => s.checklists);
+  const addChecklistEntry = useAppStore((s) => s.addChecklistEntry);
+  const activeUser = useAppStore((s) => s.activeUser);
   const [itemStates, setItemStates] = useState<Record<string, ItemState>>({});
   const [saving, setSaving] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
-      const templates = await storageService.getChecklistTemplates();
-      const found = templates.find((t) => t.id === id);
-      if (found) {
-        setTemplate(found);
-        const initial: Record<string, ItemState> = {};
-        for (const item of found.items) {
-          initial[item.id] = { result: null, comment: "" };
-        }
-        setItemStates(initial);
-      }
-    })();
-  }, [id]);
+  const template = useMemo(
+    () => checklists.find((t) => t.id === id) ?? null,
+    [checklists, id],
+  );
+
+  // Initialize item states when template is found
+  if (template && !initialized) {
+    const initial: Record<string, ItemState> = {};
+    for (const item of template.items) {
+      initial[item.id] = { result: null, comment: "" };
+    }
+    setItemStates(initial);
+    setInitialized(true);
+  }
 
   const setItemResult = useCallback(
     (itemId: string, result: "ok" | "deviation") => {
@@ -174,10 +176,10 @@ export default function ChecklistDetailScreen() {
       comment: itemStates[item.id].comment || undefined,
     }));
 
-    await storageService.saveChecklistEntry({
+    await addChecklistEntry({
       templateId: template.id,
       completedItems,
-      completedBy: "Bruker",
+      completedBy: activeUser,
       startedAt: Date.now(),
       completedAt: Date.now(),
       status: "completed",
@@ -186,7 +188,7 @@ export default function ChecklistDetailScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);
     router.back();
-  }, [template, allDone, itemStates]);
+  }, [template, allDone, itemStates, addChecklistEntry, activeUser]);
 
   if (!template) {
     return (
