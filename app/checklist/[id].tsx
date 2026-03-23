@@ -203,7 +203,7 @@ export default function ChecklistDetailScreen() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerRow}>
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
             accessibilityLabel="Tilbake"
             accessibilityRole="button"
             style={styles.backBtn}

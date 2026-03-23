@@ -8,6 +8,7 @@ import {
   Settings,
 } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
 import {
   colors,
   spacing,
@@ -135,7 +136,7 @@ export default function OverviewScreen() {
         <Text style={styles.title}>Oversikt</Text>
         <Pressable
           onPress={() => {
-            // Placeholder for settings
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           }}
           accessibilityLabel="Innstillinger"
           accessibilityRole="button"

@@ -232,7 +232,7 @@ export default function TemperatureScreen() {
                   </Text>
                 )}
               </View>
-              <Pressable onPress={closeModal} accessibilityLabel="Lukk">
+              <Pressable onPress={() => { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); closeModal(); }} accessibilityLabel="Lukk">
                 <X size={24} color={colors.textMuted} strokeWidth={1.5} />
               </Pressable>
             </View>
