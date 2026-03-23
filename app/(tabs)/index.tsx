@@ -1,7 +1,8 @@
-import { useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Thermometer,
   ClipboardCheck,
@@ -10,6 +11,16 @@ import {
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
+import * as storageService from "../../src/services/storageService";
+
+interface Stats {
+  complianceScore: number;
+  devicesOk: number;
+  devicesTotal: number;
+  checklistsDoneToday: number;
+  checklistsTotal: number;
+  openDeviations: number;
+}
 
 function ComplianceScore({ score }: { score: number }) {
   const statusColor =
@@ -56,8 +67,84 @@ function QuickAction({
   );
 }
 
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
+
+async function computeStats(): Promise<Stats> {
+  const [devices, entries, deviations] = await Promise.all([
+    storageService.getDevices(),
+    storageService.getChecklistEntries(),
+    storageService.getDeviations(),
+  ]);
+
+  const devicesOk = devices.filter(
+    (d) => d.lastReading?.status === "ok",
+  ).length;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayMs = todayStart.getTime();
+
+  const checklistsDoneToday = entries.filter(
+    (e) => e.status === "completed" && (e.completedAt ?? 0) >= todayMs,
+  ).length;
+
+  const templates = await storageService.getChecklistTemplates();
+
+  const openDeviations = deviations.filter((d) => d.status !== "closed").length;
+  const totalDeviations = deviations.length;
+  const closedDeviations = totalDeviations - openDeviations;
+
+  // Compliance: weighted average of temp OK + checklists done + deviations closed
+  const tempScore = devices.length > 0 ? (devicesOk / devices.length) * 100 : 100;
+  const checklistScore =
+    templates.length > 0
+      ? (checklistsDoneToday / templates.length) * 100
+      : 100;
+  const deviationScore =
+    totalDeviations > 0
+      ? (closedDeviations / totalDeviations) * 100
+      : 100;
+
+  const complianceScore = Math.round(
+    tempScore * 0.4 + checklistScore * 0.3 + deviationScore * 0.3,
+  );
+
+  return {
+    complianceScore: Math.min(100, Math.max(0, complianceScore)),
+    devicesOk,
+    devicesTotal: devices.length,
+    checklistsDoneToday,
+    checklistsTotal: templates.length,
+    openDeviations,
+  };
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const [stats, setStats] = useState<Stats>({
+    complianceScore: 0,
+    devicesOk: 0,
+    devicesTotal: 0,
+    checklistsDoneToday: 0,
+    checklistsTotal: 0,
+    openDeviations: 0,
+  });
+
+  useEffect(() => {
+    if (isFocused) {
+      void computeStats().then(setStats);
+    }
+  }, [isFocused]);
+
+  const greeting = getGreeting();
 
   return (
     <ScrollView
@@ -67,18 +154,22 @@ export default function HomeScreen() {
         { paddingTop: insets.top + spacing.lg },
       ]}
     >
-      {/* Header */}
       <Animated.View entering={FadeInDown.duration(400)}>
-        <Text style={styles.greeting}>God morgen 👋</Text>
-        <Text style={styles.subtitle}>Alt ser bra ut i dag</Text>
+        <Text style={styles.greeting}>{greeting}</Text>
+        <Text style={styles.subtitle}>
+          {stats.complianceScore >= 80
+            ? "Alt ser bra ut i dag"
+            : stats.complianceScore >= 60
+              ? "Noen ting trenger oppmerksomhet"
+              : "Det er oppgaver som haster"}
+        </Text>
       </Animated.View>
 
-      {/* Compliance Score */}
       <Animated.View
         entering={FadeInDown.delay(100).duration(400)}
         style={styles.scoreWrapper}
       >
-        <ComplianceScore score={92} />
+        <ComplianceScore score={stats.complianceScore} />
       </Animated.View>
 
       {/* Hurtigknapper */}
@@ -98,31 +189,39 @@ export default function HomeScreen() {
         <QuickAction
           icon={AlertTriangle}
           label="Meld avvik"
-          onPress={() => router.push("/(tabs)/deviations")}
+          onPress={() => router.push("/deviation/new")}
           delay={400}
         />
       </View>
 
-      {/* Kommende oppgaver */}
+      {/* Oversikt */}
       <Animated.View entering={FadeInDown.delay(500).duration(400)}>
-        <Text style={styles.sectionTitle}>Kommende oppgaver</Text>
-        <View style={styles.taskCard}>
-          <View style={[styles.taskDot, { backgroundColor: colors.warning }]} />
-          <View style={styles.taskContent}>
-            <Text style={styles.taskTitle}>Temperaturkontroll — Kjøl 1</Text>
-            <Text style={styles.taskTime}>Innen 14:00</Text>
-          </View>
-        </View>
-        <View style={styles.taskCard}>
-          <View style={[styles.taskDot, { backgroundColor: colors.primary }]} />
-          <View style={styles.taskContent}>
-            <Text style={styles.taskTitle}>Daglig renholdssjekk</Text>
-            <Text style={styles.taskTime}>Innen 16:00</Text>
-          </View>
+        <Text style={styles.sectionTitle}>Status</Text>
+        <View style={styles.statsCard}>
+          <StatRow
+            label="Temperatur OK"
+            value={`${stats.devicesOk} / ${stats.devicesTotal}`}
+          />
+          <StatRow
+            label="Sjekklister i dag"
+            value={`${stats.checklistsDoneToday} / ${stats.checklistsTotal}`}
+          />
+          <StatRow
+            label="Åpne avvik"
+            value={`${stats.openDeviations}`}
+          />
         </View>
       </Animated.View>
     </ScrollView>
   );
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return "God natt";
+  if (hour < 12) return "God morgen";
+  if (hour < 18) return "God ettermiddag";
+  return "God kveld";
 }
 
 const styles = StyleSheet.create({
@@ -203,33 +302,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.md,
   },
-  taskCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.lg,
+  statsCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    marginBottom: spacing.sm,
+    padding: spacing.lg,
+    gap: spacing.md,
     ...shadows.sm,
   },
-  taskDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: spacing.md,
+  statRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  taskContent: {
-    flex: 1,
+  statLabel: {
+    fontFamily: typography.fonts.regular,
+    fontSize: typography.sizes.body,
+    color: colors.textMuted,
   },
-  taskTitle: {
-    fontFamily: typography.fonts.medium,
+  statValue: {
+    fontFamily: typography.fonts.semibold,
     fontSize: typography.sizes.body,
     color: colors.text,
-  },
-  taskTime: {
-    fontFamily: typography.fonts.regular,
-    fontSize: typography.sizes.small,
-    color: colors.textMuted,
-    marginTop: 2,
   },
 });
