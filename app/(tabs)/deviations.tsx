@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Plus, Clock } from "lucide-react-native";
+import { Plus, Clock, AlertTriangle } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import {
   colors,
@@ -14,6 +14,7 @@ import {
 } from "../../src/theme";
 import type { ComplianceStatus } from "../../src/theme";
 import type { Deviation } from "../../src/types";
+import { SkeletonList, EmptyState } from "../../src/components/ui";
 import { useAppStore } from "../../src/stores/appStore";
 
 type FilterValue = "all" | "open" | "in_progress" | "closed";
@@ -124,6 +125,7 @@ function DeviationCard({
 export default function DeviationsScreen() {
   const insets = useSafeAreaInsets();
   const deviations = useAppStore((s) => s.deviations);
+  const hydrated = useAppStore((s) => s.hydrated);
   const [filter, setFilter] = useState<FilterValue>("all");
 
   const filtered = useMemo(
@@ -157,17 +159,30 @@ export default function DeviationsScreen() {
         ))}
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <DeviationCard
-            deviation={item}
-            onPress={() => router.push(`/deviation/${item.id}`)}
-          />
-        )}
-      />
+      {!hydrated ? (
+        <SkeletonList count={3} />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title={filter === "all" ? "Ingen avvik" : "Ingen avvik med denne statusen"}
+          description={filter === "all"
+            ? "Bra jobba! Det er ingen registrerte avvik."
+            : "Prøv å endre filter for å se avvik."
+          }
+        />
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <DeviationCard
+              deviation={item}
+              onPress={() => router.push(`/deviation/${item.id}`)}
+            />
+          )}
+        />
+      )}
 
       {/* FAB */}
       <Pressable

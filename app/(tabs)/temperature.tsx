@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
 import type { ComplianceStatus } from "../../src/theme";
 import type { TemperatureDevice } from "../../src/types";
-import { Button } from "../../src/components/ui";
+import { Button, SkeletonList, EmptyState } from "../../src/components/ui";
 import { TemperatureInput } from "../../src/components/features/TemperatureInput";
 import { useAppStore } from "../../src/stores/appStore";
 
@@ -102,6 +102,7 @@ function getStatus(
 export default function TemperatureScreen() {
   const insets = useSafeAreaInsets();
   const devices = useAppStore((s) => s.devices);
+  const hydrated = useAppStore((s) => s.hydrated);
   const addReading = useAppStore((s) => s.addReading);
   const activeUser = useAppStore((s) => s.activeUser);
   const [selectedDevice, setSelectedDevice] = useState<TemperatureDevice | null>(null);
@@ -182,14 +183,14 @@ export default function TemperatureScreen() {
         </View>
       )}
 
-      {devices.length === 0 ? (
-        <View style={styles.center}>
-          <Thermometer size={48} color={colors.textMuted} strokeWidth={1} />
-          <Text style={styles.emptyText}>Ingen enheter registrert</Text>
-          <Text style={styles.emptySubtext}>
-            Enheter vil vises her etter oppsett
-          </Text>
-        </View>
+      {!hydrated ? (
+        <SkeletonList count={3} />
+      ) : devices.length === 0 ? (
+        <EmptyState
+          icon={Thermometer}
+          title="Ingen enheter registrert"
+          description="Legg til kjøleskap, frysere eller andre enheter for å starte temperaturlogging."
+        />
       ) : (
         <FlatList
           data={devices}

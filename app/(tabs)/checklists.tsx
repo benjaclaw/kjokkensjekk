@@ -18,7 +18,7 @@ import {
   shadows,
   typography,
 } from "../../src/theme";
-import { ProgressBar } from "../../src/components/ui";
+import { ProgressBar, SkeletonList, EmptyState } from "../../src/components/ui";
 import type { ChecklistTemplate, ChecklistEntry } from "../../src/types";
 import { useAppStore } from "../../src/stores/appStore";
 
@@ -86,6 +86,7 @@ export default function ChecklistsScreen() {
   const insets = useSafeAreaInsets();
   const checklists = useAppStore((s) => s.checklists);
   const entries = useAppStore((s) => s.entries);
+  const hydrated = useAppStore((s) => s.hydrated);
   const [refreshing, setRefreshing] = useState(false);
 
   const rows = useMemo<ChecklistRow[]>(() => {
@@ -107,6 +108,15 @@ export default function ChecklistsScreen() {
         </Text>
       </View>
 
+      {!hydrated ? (
+        <SkeletonList count={3} />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={ClipboardCheck}
+          title="Ingen sjekklister"
+          description="Sjekklister vil dukke opp her når de er konfigurert for din organisasjon."
+        />
+      ) : (
       <FlatList
         data={rows}
         keyExtractor={(item) => item.template.id}
@@ -128,6 +138,7 @@ export default function ChecklistsScreen() {
           />
         )}
       />
+      )}
     </View>
   );
 }
