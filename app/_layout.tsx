@@ -15,6 +15,7 @@ import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { colors } from "../src/theme";
 import { useAppStore } from "../src/stores/appStore";
+import { setupAllNotifications } from "../src/services/notificationService";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -28,10 +29,18 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const deviations = useAppStore((s) => s.deviations);
+
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);
     void hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (hydrated) {
+      void setupAllNotifications(deviations);
+    }
+  }, [hydrated, deviations]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
