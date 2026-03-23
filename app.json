@@ -6,17 +6,19 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "kjokkensjekk",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F8FAFB"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.benjaclaw.kjokkensjekk",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#F8FAFB",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -25,6 +27,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2254de04-4a12-4328-b4f7-855803e87d01"
+      }
+    },
+    "owner": "benjaclaw",
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
   }
 }
