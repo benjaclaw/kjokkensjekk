@@ -1,71 +1,61 @@
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
+import { router } from "expo-router";
 import { ClipboardCheck, ChevronRight } from "lucide-react-native";
-import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
+import {
+  colors,
+  spacing,
+  borderRadius,
+  shadows,
+  typography,
+} from "../../src/theme";
+import { ProgressBar } from "../../src/components/ui";
+import type { ChecklistTemplate, ChecklistEntry } from "../../src/types";
+import * as storageService from "../../src/services/storageService";
 
-interface ChecklistSummary {
-  id: string;
-  name: string;
-  itemCount: number;
-  completedCount: number;
-  lastCompleted?: string;
+interface ChecklistRow {
+  template: ChecklistTemplate;
+  lastEntry?: ChecklistEntry;
 }
 
-const DEMO_CHECKLISTS: ChecklistSummary[] = [
-  {
-    id: "1",
-    name: "Daglig renholdssjekk",
-    itemCount: 12,
-    completedCount: 0,
-    lastCompleted: "I går, 15:30",
-  },
-  {
-    id: "2",
-    name: "Varemottak",
-    itemCount: 8,
-    completedCount: 0,
-    lastCompleted: "I dag, 08:15",
-  },
-  {
-    id: "3",
-    name: "Ukentlig dyprengjøring",
-    itemCount: 18,
-    completedCount: 0,
-    lastCompleted: "Forrige mandag",
-  },
-];
+function ChecklistCard({
+  row,
+  onPress,
+}: {
+  row: ChecklistRow;
+  onPress: () => void;
+}) {
+  const { template, lastEntry } = row;
+  const completedCount = lastEntry?.completedItems.length ?? 0;
+  const totalCount = template.items.length;
+  const isCompleted = lastEntry?.status === "completed";
 
-function ProgressBar({ completed, total }: { completed: number; total: number }) {
-  const progress = total > 0 ? completed / total : 0;
-  const barColor = progress === 1 ? colors.success : colors.primary;
+  const lastCompletedLabel = lastEntry?.completedAt
+    ? formatRelativeTime(lastEntry.completedAt)
+    : undefined;
 
   return (
-    <View style={styles.progressBg}>
-      <View
-        style={[
-          styles.progressFill,
-          {
-            width: `${progress * 100}%`,
-            backgroundColor: barColor,
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
-function ChecklistCard({ item }: { item: ChecklistSummary }) {
-  return (
-    <Pressable style={styles.card} accessibilityRole="button">
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        pressed && styles.cardPressed,
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+    >
       <View style={styles.cardIcon}>
         <ClipboardCheck size={24} color={colors.primary} strokeWidth={1.5} />
       </View>
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        <ProgressBar completed={item.completedCount} total={item.itemCount} />
+        <Text style={styles.cardTitle}>{template.name}</Text>
+        <ProgressBar
+          progress={isCompleted ? 1 : totalCount > 0 ? completedCount / totalCount : 0}
+        />
         <Text style={styles.cardMeta}>
-          {item.completedCount}/{item.itemCount} punkter
-          {item.lastCompleted ? ` · Sist: ${item.lastCompleted}` : ""}
+          {template.items.length} punkter
+          {lastCompletedLabel ? ` · Sist: ${lastCompletedLabel}` : ""}
         </Text>
       </View>
       <ChevronRight size={20} color={colors.textMuted} strokeWidth={1.5} />
@@ -73,23 +63,65 @@ function ChecklistCard({ item }: { item: ChecklistSummary }) {
   );
 }
 
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "Nå";
+  if (minutes < 60) return `${minutes} min siden`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}t siden`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "I går";
+  return `${days} dager siden`;
+}
+
 export default function ChecklistsScreen() {
   const insets = useSafeAreaInsets();
+  const isFocused = useIsFocused();
+  const [rows, setRows] = useState<ChecklistRow[]>([]);
+
+  const loadData = useCallback(async () => {
+    const [templates, entries] = await Promise.all([
+      storageService.getChecklistTemplates(),
+      storageService.getChecklistEntries(),
+    ]);
+
+    const mapped: ChecklistRow[] = templates.map((template) => {
+      const templateEntries = entries.filter(
+        (e) => e.templateId === template.id,
+      );
+      const lastEntry = templateEntries[0]; // entries are sorted newest first
+      return { template, lastEntry };
+    });
+
+    setRows(mapped);
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      void loadData();
+    }
+  }, [isFocused, loadData]);
 
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
         <Text style={styles.title}>Sjekklister</Text>
         <Text style={styles.subtitle}>
-          {DEMO_CHECKLISTS.length} aktive sjekklister
+          {rows.length} aktive sjekklister
         </Text>
       </View>
 
       <FlatList
-        data={DEMO_CHECKLISTS}
-        keyExtractor={(item) => item.id}
+        data={rows}
+        keyExtractor={(item) => item.template.id}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => <ChecklistCard item={item} />}
+        renderItem={({ item }) => (
+          <ChecklistCard
+            row={item}
+            onPress={() => router.push(`/checklist/${item.template.id}`)}
+          />
+        )}
       />
     </View>
   );
@@ -128,6 +160,10 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     ...shadows.sm,
   },
+  cardPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
   cardIcon: {
     width: 48,
     height: 48,
@@ -151,15 +187,5 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.caption,
     color: colors.textMuted,
     marginTop: spacing.xs,
-  },
-  progressBg: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: 3,
   },
 });

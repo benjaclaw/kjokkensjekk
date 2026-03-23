@@ -215,4 +215,45 @@ export async function seedDemoData(): Promise<void> {
   ];
 
   await setList(KEYS.devices, demoDevices);
+
+  const demoChecklists: ChecklistTemplate[] = [
+    {
+      id: "cl-1",
+      name: "Daglig renholdssjekk",
+      category: "Renhold",
+      items: [
+        { id: "cl-1-1", text: "Kjøkkenbenker rengjort", requiresPhoto: false, requiresComment: false },
+        { id: "cl-1-2", text: "Gulv vasket", requiresPhoto: false, requiresComment: false },
+        { id: "cl-1-3", text: "Oppvaskmaskin tømt og rengjort", requiresPhoto: false, requiresComment: false },
+        { id: "cl-1-4", text: "Søppel tømt", requiresPhoto: false, requiresComment: false },
+        { id: "cl-1-5", text: "Håndvasker med såpe og papir", requiresPhoto: false, requiresComment: false },
+        { id: "cl-1-6", text: "Kjøleskap rengjort utvendig", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-2",
+      name: "Varemottak",
+      category: "Mottak",
+      items: [
+        { id: "cl-2-1", text: "Temperatur på kjølevarer kontrollert", requiresPhoto: false, requiresComment: true },
+        { id: "cl-2-2", text: "Emballasje intakt", requiresPhoto: false, requiresComment: false },
+        { id: "cl-2-3", text: "Holdbarhetsdato sjekket", requiresPhoto: false, requiresComment: false },
+        { id: "cl-2-4", text: "Varer plassert riktig i lager", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-3",
+      name: "Ukentlig dyprengjøring",
+      category: "Renhold",
+      items: [
+        { id: "cl-3-1", text: "Kjøleskap rengjort innvendig", requiresPhoto: true, requiresComment: false },
+        { id: "cl-3-2", text: "Fryser kontrollert", requiresPhoto: false, requiresComment: false },
+        { id: "cl-3-3", text: "Ventilasjon rengjort", requiresPhoto: false, requiresComment: false },
+        { id: "cl-3-4", text: "Avtrekk rengjort", requiresPhoto: true, requiresComment: false },
+        { id: "cl-3-5", text: "Utstyr desinfisert", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+  ];
+
+  await setList(KEYS.checklists, demoChecklists);
 }

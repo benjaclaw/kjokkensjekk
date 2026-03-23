@@ -14,6 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { colors } from "../src/theme";
+import { seedDemoData } from "../src/services/storageService";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -27,6 +28,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);
+    void seedDemoData();
   }, []);
 
   useEffect(() => {
