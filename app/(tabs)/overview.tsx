@@ -1,11 +1,19 @@
-import { useMemo } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { useMemo, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Thermometer,
   ClipboardCheck,
   AlertTriangle,
   Settings,
+  FileText,
 } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -17,6 +25,9 @@ import {
   typography,
 } from "../../src/theme";
 import { useAppStore } from "../../src/stores/appStore";
+import { useAuthStore } from "../../src/stores/authStore";
+import { shareDailyReport } from "../../src/services/pdfService";
+import { handleAsyncError } from "../../src/services/errorService";
 
 function ComplianceScoreLarge({ score }: { score: number }) {
   const statusColor =
@@ -65,6 +76,8 @@ export default function OverviewScreen() {
   const entries = useAppStore((s) => s.entries);
   const deviations = useAppStore((s) => s.deviations);
   const checklists = useAppStore((s) => s.checklists);
+  const workspace = useAuthStore((s) => s.workspace);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   const stats = useMemo(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -124,6 +137,27 @@ export default function OverviewScreen() {
     };
   }, [devices, readings, entries, deviations, checklists]);
 
+  const handleGenerateReport = useCallback(async () => {
+    setGeneratingPdf(true);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await shareDailyReport({
+        companyName: workspace?.name ?? "Min bedrift",
+        date: new Date(),
+        complianceScore: stats.complianceScore,
+        devices,
+        readings,
+        checklists,
+        entries,
+        deviations,
+      });
+    } catch (error) {
+      handleAsyncError("generere rapport", error);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }, [workspace, stats.complianceScore, devices, readings, checklists, entries, deviations]);
+
   return (
     <ScrollView
       style={styles.screen}
@@ -176,6 +210,25 @@ export default function OverviewScreen() {
           delay={400}
         />
       </View>
+
+      <Animated.View entering={FadeInDown.delay(500).duration(400)}>
+        <Pressable
+          style={[styles.reportButton, generatingPdf && styles.reportButtonDisabled]}
+          onPress={() => void handleGenerateReport()}
+          disabled={generatingPdf}
+          accessibilityLabel="Generer daglig rapport"
+          accessibilityRole="button"
+        >
+          {generatingPdf ? (
+            <ActivityIndicator size="small" color={colors.surface} />
+          ) : (
+            <FileText size={20} color={colors.surface} strokeWidth={1.5} />
+          )}
+          <Text style={styles.reportButtonText}>
+            {generatingPdf ? "Genererer…" : "Generer rapport"}
+          </Text>
+        </Pressable>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -266,5 +319,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.xs,
     textAlign: "center",
+  },
+  reportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    marginTop: spacing["2xl"],
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.lg,
+    borderRadius: borderRadius.md,
+    ...shadows.sm,
+  },
+  reportButtonDisabled: {
+    opacity: 0.7,
+  },
+  reportButtonText: {
+    fontFamily: typography.fonts.semibold,
+    fontSize: typography.sizes.body,
+    color: colors.surface,
   },
 });
