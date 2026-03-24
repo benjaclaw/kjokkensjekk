@@ -253,6 +253,69 @@ export async function seedDemoData(): Promise<void> {
         { id: "cl-3-5", text: "Utstyr desinfisert", requiresPhoto: false, requiresComment: false },
       ],
     },
+    {
+      id: "cl-4",
+      name: "Personlig hygiene",
+      category: "Hygiene",
+      items: [
+        { id: "cl-4-1", text: "Rent arbeidstøy/uniform", requiresPhoto: false, requiresComment: false },
+        { id: "cl-4-2", text: "Hårvern brukt", requiresPhoto: false, requiresComment: false },
+        { id: "cl-4-3", text: "Ingen smykker/klokker", requiresPhoto: false, requiresComment: false },
+        { id: "cl-4-4", text: "Hender vasket og desinfisert", requiresPhoto: false, requiresComment: false },
+        { id: "cl-4-5", text: "Ingen synlige sår uten plaster", requiresPhoto: false, requiresComment: false },
+        { id: "cl-4-6", text: "Syke ansatte holdt hjemme", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-5",
+      name: "Allergenkontroll",
+      category: "Allergen",
+      items: [
+        { id: "cl-5-1", text: "Allergenliste oppdatert og tilgjengelig", requiresPhoto: false, requiresComment: false },
+        { id: "cl-5-2", text: "Allergenfrie soner merket", requiresPhoto: false, requiresComment: false },
+        { id: "cl-5-3", text: "Separate redskaper for allergenfri mat", requiresPhoto: false, requiresComment: false },
+        { id: "cl-5-4", text: "Personale opplært i allergenhåndtering", requiresPhoto: false, requiresComment: false },
+        { id: "cl-5-5", text: "Kryssforurensning forhindret", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-6",
+      name: "Kjøle- og frysekontroll",
+      category: "Temperatur",
+      items: [
+        { id: "cl-6-1", text: "Kjøleskapstemperatur under 4°C", requiresPhoto: false, requiresComment: true },
+        { id: "cl-6-2", text: "Frysertemperatur under -18°C", requiresPhoto: false, requiresComment: true },
+        { id: "cl-6-3", text: "Varer plassert riktig (rå under, ferdig over)", requiresPhoto: false, requiresComment: false },
+        { id: "cl-6-4", text: "Ingen overfylte kjøleskap", requiresPhoto: false, requiresComment: false },
+        { id: "cl-6-5", text: "Dato-merking på alle varer", requiresPhoto: false, requiresComment: false },
+        { id: "cl-6-6", text: "Utgåtte varer fjernet", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-7",
+      name: "Skadedyrkontroll",
+      category: "Skadedyr",
+      items: [
+        { id: "cl-7-1", text: "Ingen tegn til skadedyr", requiresPhoto: false, requiresComment: false },
+        { id: "cl-7-2", text: "Feller kontrollert og dokumentert", requiresPhoto: false, requiresComment: true },
+        { id: "cl-7-3", text: "Dører og vinduer tett", requiresPhoto: false, requiresComment: false },
+        { id: "cl-7-4", text: "Søppel tømt og lukket", requiresPhoto: false, requiresComment: false },
+        { id: "cl-7-5", text: "Lager ryddig og rent", requiresPhoto: false, requiresComment: false },
+      ],
+    },
+    {
+      id: "cl-8",
+      name: "Stengerutiner",
+      category: "Daglig",
+      items: [
+        { id: "cl-8-1", text: "Alt utstyr rengjort og desinfisert", requiresPhoto: false, requiresComment: false },
+        { id: "cl-8-2", text: "Matavfall kastet", requiresPhoto: false, requiresComment: false },
+        { id: "cl-8-3", text: "Gulv vasket og desinfisert", requiresPhoto: false, requiresComment: false },
+        { id: "cl-8-4", text: "Kjøle-/frysetemperatur OK", requiresPhoto: false, requiresComment: true },
+        { id: "cl-8-5", text: "Komfyr, ovn, grill slått av", requiresPhoto: false, requiresComment: false },
+        { id: "cl-8-6", text: "Dører og vinduer lukket og låst", requiresPhoto: false, requiresComment: false },
+      ],
+    },
   ];
 
   await setList(KEYS.checklists, demoChecklists);
