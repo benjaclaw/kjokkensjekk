@@ -26,9 +26,21 @@ function useAuthRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isOnboarded = useAuthStore((s) => s.isOnboarded);
   const authLoading = useAuthStore((s) => s.loading);
+  const isOfflineMode = useAuthStore((s) => s.isOfflineMode);
+  const hydrated = useAppStore((s) => s.hydrated);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !hydrated) return;
+
+    // Offline mode: skip auth, go straight to tabs
+    if (isOfflineMode) {
+      const inAuthGroup = segments[0] === "auth";
+      const inOnboardingGroup = segments[0] === "onboarding";
+      if (inAuthGroup || inOnboardingGroup) {
+        router.replace("/");
+      }
+      return;
+    }
 
     const inAuthGroup = segments[0] === "auth";
     const inOnboardingGroup = segments[0] === "onboarding";
@@ -40,7 +52,7 @@ function useAuthRedirect() {
     } else if (isAuthenticated && isOnboarded && (inAuthGroup || inOnboardingGroup)) {
       router.replace("/");
     }
-  }, [isAuthenticated, isOnboarded, authLoading, segments, router]);
+  }, [isAuthenticated, isOnboarded, authLoading, isOfflineMode, hydrated, segments, router]);
 }
 
 export default function RootLayout() {

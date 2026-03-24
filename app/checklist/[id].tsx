@@ -26,6 +26,7 @@ import type {
   CompletedChecklistItem,
 } from "../../src/types";
 import { useAppStore } from "../../src/stores/appStore";
+import { withErrorHandling } from "../../src/services/errorService";
 
 interface ItemState {
   result: "ok" | "deviation" | null;
@@ -176,14 +177,17 @@ export default function ChecklistDetailScreen() {
       comment: itemStates[item.id].comment || undefined,
     }));
 
-    await addChecklistEntry({
-      templateId: template.id,
-      completedItems,
-      completedBy: activeUser,
-      startedAt: Date.now(),
-      completedAt: Date.now(),
-      status: "completed",
-    });
+    const result = await withErrorHandling("lagre sjekkliste", () =>
+      addChecklistEntry({
+        templateId: template.id,
+        completedItems,
+        completedBy: activeUser,
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+        status: "completed",
+      }),
+    );
+    if (!result) { setSaving(false); return; }
 
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSaving(false);

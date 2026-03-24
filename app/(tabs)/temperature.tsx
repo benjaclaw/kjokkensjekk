@@ -19,6 +19,7 @@ import type { TemperatureDevice } from "../../src/types";
 import { Button, SkeletonList, EmptyState } from "../../src/components/ui";
 import { TemperatureInput } from "../../src/components/features/TemperatureInput";
 import { useAppStore } from "../../src/stores/appStore";
+import { withErrorHandling } from "../../src/services/errorService";
 
 function DeviceIcon({ type }: { type: TemperatureDevice["type"] }) {
   if (type === "freezer") {
@@ -127,13 +128,16 @@ export default function TemperatureScreen() {
     if (!selectedDevice) return;
     setSaving(true);
     const status = getStatus(tempValue, selectedDevice.minTemp, selectedDevice.maxTemp);
-    await addReading({
-      deviceId: selectedDevice.id,
-      temperature: Math.round(tempValue * 10) / 10,
-      status,
-      recordedBy: activeUser,
-      recordedAt: Date.now(),
-    });
+    const result = await withErrorHandling("lagre temperatur", () =>
+      addReading({
+        deviceId: selectedDevice.id,
+        temperature: Math.round(tempValue * 10) / 10,
+        status,
+        recordedBy: activeUser,
+        recordedAt: Date.now(),
+      }),
+    );
+    if (!result) { setSaving(false); return; }
     void Haptics.notificationAsync(
       status === "ok"
         ? Haptics.NotificationFeedbackType.Success
