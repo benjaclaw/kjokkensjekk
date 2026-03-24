@@ -216,6 +216,49 @@ export async function seedDemoData(): Promise<void> {
 
   await setList(KEYS.devices, demoDevices);
 
+  // Seed historikk-data: 20 readings per device over 7 dager
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const demoReadings: TemperatureReading[] = [];
+
+  // Kjøleskap 1 (0–4°C): mostly in range, a few spikes
+  const fridge1Temps = [
+    2.8, 3.1, 3.5, 2.9, 3.0, 4.2, 3.3, 2.7, 3.8, 3.1,
+    5.3, 3.4, 2.6, 3.0, 3.7, 4.8, 3.2, 2.5, 3.6, 3.2,
+  ];
+  for (let i = 0; i < 20; i++) {
+    const t = fridge1Temps[i];
+    const status = t >= 0 && t <= 4 ? "ok" : "critical";
+    demoReadings.push({
+      id: `seed-r1-${i}`,
+      deviceId: "demo-1",
+      temperature: t,
+      status: status as TemperatureReading["status"],
+      recordedBy: "System",
+      recordedAt: now - (7 * DAY) + i * ((7 * DAY) / 20),
+    });
+  }
+
+  // Kjøleskap 2 (0–4°C): more unstable, several out-of-range
+  const fridge2Temps = [
+    3.9, 4.5, 5.1, 4.8, 3.6, 3.2, 3.8, 5.5, 4.1, 3.5,
+    2.9, 4.3, 5.8, 4.6, 3.7, 3.1, 4.9, 5.2, 4.0, 5.1,
+  ];
+  for (let i = 0; i < 20; i++) {
+    const t = fridge2Temps[i];
+    const status = t >= 0 && t <= 4 ? "ok" : "critical";
+    demoReadings.push({
+      id: `seed-r2-${i}`,
+      deviceId: "demo-2",
+      temperature: t,
+      status: status as TemperatureReading["status"],
+      recordedBy: "System",
+      recordedAt: now - (7 * DAY) + i * ((7 * DAY) / 20),
+    });
+  }
+
+  await setList(KEYS.readings, demoReadings);
+
   const demoChecklists: ChecklistTemplate[] = [
     {
       id: "cl-1",

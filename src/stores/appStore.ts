@@ -75,13 +75,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Seed demo data if empty
     if (devices.length === 0) {
       await seedDemoData();
-      const [seededDevices, seededChecklists] = await Promise.all([
+      const [seededDevices, seededReadings, seededChecklists] = await Promise.all([
         getDevices(),
+        getReadings(),
         getChecklistTemplates(),
       ]);
       set({
         devices: seededDevices,
-        readings: [],
+        readings: seededReadings,
         checklists: seededChecklists,
         entries: [],
         deviations: [],

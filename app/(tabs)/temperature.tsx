@@ -1,13 +1,13 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   Pressable,
   Modal,
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Snowflake, Thermometer, X } from "lucide-react-native";
@@ -18,6 +18,7 @@ import type { ComplianceStatus } from "../../src/theme";
 import type { TemperatureDevice } from "../../src/types";
 import { Button, SkeletonList, EmptyState } from "../../src/components/ui";
 import { TemperatureInput } from "../../src/components/features/TemperatureInput";
+import { TemperatureChart } from "../../src/components/features/TemperatureChart";
 import { useAppStore } from "../../src/stores/appStore";
 import { withErrorHandling } from "../../src/services/errorService";
 
@@ -103,9 +104,12 @@ function getStatus(
 export default function TemperatureScreen() {
   const insets = useSafeAreaInsets();
   const devices = useAppStore((s) => s.devices);
+  const readings = useAppStore((s) => s.readings);
   const hydrated = useAppStore((s) => s.hydrated);
   const addReading = useAppStore((s) => s.addReading);
   const activeUser = useAppStore((s) => s.activeUser);
+  const [historyDeviceId, setHistoryDeviceId] = useState<string | null>(null);
+  const [historyPeriod, setHistoryPeriod] = useState<"24h" | "7d">("7d");
   const [selectedDevice, setSelectedDevice] = useState<TemperatureDevice | null>(null);
   const [tempValue, setTempValue] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -167,6 +171,21 @@ export default function TemperatureScreen() {
     openDevice(devices[0]);
   }, [devices, openDevice]);
 
+  // Default to first device for history
+  const activeHistoryId = historyDeviceId ?? (devices.length > 0 ? devices[0].id : null);
+  const activeHistoryDevice = devices.find((d) => d.id === activeHistoryId) ?? null;
+
+  const filteredReadings = useMemo(() => {
+    if (!activeHistoryId) return [];
+    const cutoff =
+      historyPeriod === "24h"
+        ? Date.now() - 24 * 60 * 60 * 1000
+        : Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return readings.filter(
+      (r) => r.deviceId === activeHistoryId && r.recordedAt >= cutoff,
+    );
+  }, [readings, activeHistoryId, historyPeriod]);
+
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.lg }]}>
@@ -196,27 +215,102 @@ export default function TemperatureScreen() {
           description="Legg til kjøleskap, frysere eller andre enheter for å starte temperaturlogging."
         />
       ) : (
-        <FlatList
-          data={devices}
-          keyExtractor={(item) => item.id}
+        <ScrollView
           contentContainerStyle={styles.list}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => {
                 setRefreshing(true);
-                // Data is reactive via Zustand, just toggle refreshing
                 setTimeout(() => setRefreshing(false), 300);
               }}
               tintColor={colors.primary}
             />
           }
-          renderItem={({ item, index }) => (
-            <Animated.View entering={FadeInDown.delay(index * 80).duration(300)}>
+        >
+          {devices.map((item, index) => (
+            <Animated.View key={item.id} entering={FadeInDown.delay(index * 80).duration(300)}>
               <DeviceCard device={item} onPress={() => openDevice(item)} />
             </Animated.View>
-          )}
-        />
+          ))}
+
+          {/* Historikk-seksjon */}
+          <View style={styles.historySection}>
+            <Text style={styles.historyTitle}>Historikk</Text>
+
+            {/* Enhet-velger */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipRow}
+              contentContainerStyle={styles.chipRowContent}
+            >
+              {devices.map((d) => (
+                <Pressable
+                  key={d.id}
+                  style={[
+                    styles.chip,
+                    activeHistoryId === d.id && styles.chipActive,
+                  ]}
+                  onPress={() => setHistoryDeviceId(d.id)}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      activeHistoryId === d.id && styles.chipTextActive,
+                    ]}
+                  >
+                    {d.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {/* Periode-toggle */}
+            <View style={styles.periodRow}>
+              <Pressable
+                style={[
+                  styles.periodBtn,
+                  historyPeriod === "24h" && styles.periodBtnActive,
+                ]}
+                onPress={() => setHistoryPeriod("24h")}
+              >
+                <Text
+                  style={[
+                    styles.periodText,
+                    historyPeriod === "24h" && styles.periodTextActive,
+                  ]}
+                >
+                  24 timer
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.periodBtn,
+                  historyPeriod === "7d" && styles.periodBtnActive,
+                ]}
+                onPress={() => setHistoryPeriod("7d")}
+              >
+                <Text
+                  style={[
+                    styles.periodText,
+                    historyPeriod === "7d" && styles.periodTextActive,
+                  ]}
+                >
+                  7 dager
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Graf */}
+            {activeHistoryDevice && (
+              <TemperatureChart
+                device={activeHistoryDevice}
+                readings={filteredReadings}
+              />
+            )}
+          </View>
+        </ScrollView>
       )}
 
       {/* Temperature input modal */}
@@ -371,6 +465,67 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.regular,
     fontSize: typography.sizes.small,
     color: colors.textMuted,
+  },
+  // History
+  historySection: {
+    marginTop: spacing.xl,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  historyTitle: {
+    fontFamily: typography.fonts.bold,
+    fontSize: typography.sizes.h3,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  chipRow: {
+    marginBottom: spacing.md,
+  },
+  chipRowContent: {
+    gap: spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontFamily: typography.fonts.medium,
+    fontSize: typography.sizes.small,
+    color: colors.textMuted,
+  },
+  chipTextActive: {
+    color: "#FFFFFF",
+  },
+  periodRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  periodBtn: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surface,
+  },
+  periodBtnActive: {
+    backgroundColor: `${colors.primary}15`,
+  },
+  periodText: {
+    fontFamily: typography.fonts.medium,
+    fontSize: typography.sizes.caption,
+    color: colors.textMuted,
+  },
+  periodTextActive: {
+    color: colors.primary,
   },
   // Modal
   modalContent: {
