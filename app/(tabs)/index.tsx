@@ -240,13 +240,15 @@ const styles = StyleSheet.create({
   quickActions: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: spacing.md,
+    gap: spacing["2xl"],
     marginBottom: spacing["3xl"],
   },
   quickAction: {
     flex: 1,
+    minWidth: 80,
     alignItems: "center",
     paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     ...shadows.sm,
