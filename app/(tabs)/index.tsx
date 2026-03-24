@@ -1,16 +1,20 @@
-import { useCallback } from "react";
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Thermometer,
   ClipboardCheck,
   AlertTriangle,
+  User,
+  LogOut,
+  X,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { colors, spacing, borderRadius, shadows, typography } from "../../src/theme";
 import { useAppStore } from "../../src/stores/appStore";
+import { useAuthStore } from "../../src/stores/authStore";
 
 function ComplianceScore({ score }: { score: number }) {
   const statusColor =
@@ -110,10 +114,68 @@ function useComputedStats() {
   };
 }
 
+function ProfileModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const profile = useAuthStore((s) => s.profile);
+  const workspace = useAuthStore((s) => s.workspace);
+  const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+
+  const handleLogout = async () => {
+    onClose();
+    await logout();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.modalContent} onPress={() => {}}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Profil</Text>
+            <Pressable onPress={onClose} hitSlop={8}>
+              <X size={24} color={colors.textMuted} strokeWidth={1.5} />
+            </Pressable>
+          </View>
+
+          <View style={styles.profileInfo}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {(profile?.display_name ?? "?")[0].toUpperCase()}
+              </Text>
+            </View>
+            <Text style={styles.profileName}>{profile?.display_name ?? "Bruker"}</Text>
+            <Text style={styles.profileEmail}>{user?.email ?? ""}</Text>
+            {workspace ? (
+              <Text style={styles.profileWorkspace}>{workspace.name}</Text>
+            ) : null}
+            {profile?.role ? (
+              <Text style={styles.profileRole}>
+                {profile.role === "admin" ? "Administrator" : profile.role === "viewer" ? "Lesetilgang" : "Bruker"}
+              </Text>
+            ) : null}
+          </View>
+
+          <Pressable style={styles.logoutButton} onPress={handleLogout}>
+            <LogOut size={20} color={colors.danger} strokeWidth={1.5} />
+            <Text style={styles.logoutText}>Logg ut</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const stats = useComputedStats();
   const greeting = getGreeting();
+  const [profileVisible, setProfileVisible] = useState(false);
+  const displayName = useAuthStore((s) => s.profile?.display_name);
 
   return (
     <ScrollView
@@ -123,8 +185,26 @@ export default function HomeScreen() {
         { paddingTop: insets.top + spacing.lg },
       ]}
     >
+      <ProfileModal
+        visible={profileVisible}
+        onClose={() => setProfileVisible(false)}
+      />
+
       <Animated.View entering={FadeInDown.duration(400)}>
-        <Text style={styles.greeting}>{greeting}</Text>
+        <View style={styles.greetingRow}>
+          <View style={styles.greetingTextContainer}>
+            <Text style={styles.greeting}>
+              {greeting}{displayName ? `, ${displayName}` : ""}
+            </Text>
+          </View>
+          <Pressable
+            style={styles.profileButton}
+            onPress={() => setProfileVisible(true)}
+            hitSlop={8}
+          >
+            <User size={22} color={colors.primary} strokeWidth={1.5} />
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>
           {stats.complianceScore >= 80
             ? "Alt ser bra ut i dag"
@@ -294,5 +374,104 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.semibold,
     fontSize: typography.sizes.body,
     color: colors.text,
+  },
+  greetingRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  greetingTextContainer: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${colors.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.xs,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing["2xl"],
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing["2xl"],
+    width: "100%",
+    maxWidth: 340,
+    ...shadows.lg,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    fontFamily: typography.fonts.semibold,
+    fontSize: typography.sizes.h3,
+    color: colors.text,
+  },
+  profileInfo: {
+    alignItems: "center",
+    marginBottom: spacing["2xl"],
+  },
+  avatarCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  avatarText: {
+    fontFamily: typography.fonts.bold,
+    fontSize: 28,
+    color: "#fff",
+  },
+  profileName: {
+    fontFamily: typography.fonts.semibold,
+    fontSize: typography.sizes.h3,
+    color: colors.text,
+  },
+  profileEmail: {
+    fontFamily: typography.fonts.regular,
+    fontSize: typography.sizes.small,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  profileWorkspace: {
+    fontFamily: typography.fonts.medium,
+    fontSize: typography.sizes.small,
+    color: colors.primary,
+    marginTop: spacing.sm,
+  },
+  profileRole: {
+    fontFamily: typography.fonts.regular,
+    fontSize: typography.sizes.caption,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  logoutText: {
+    fontFamily: typography.fonts.medium,
+    fontSize: typography.sizes.body,
+    color: colors.danger,
   },
 });

@@ -7,6 +7,7 @@ import type {
   ChecklistEntry,
   Deviation,
 } from "../types";
+import { useAuthStore } from "./authStore";
 
 const KEYS = {
   devices: "kjokkensjekk_devices",
@@ -72,7 +73,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   checklists: [],
   entries: [],
   deviations: [],
-  activeUser: "Bruker",
+  activeUser: useAuthStore.getState().profile?.display_name ?? "Bruker",
   hydrated: false,
 
   hydrate: async () => {
@@ -156,6 +157,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setActiveUser: (name) => set({ activeUser: name }),
 }));
+
+// Sync activeUser from authStore
+useAuthStore.subscribe((state) => {
+  const name = state.profile?.display_name ?? "Bruker";
+  if (useAppStore.getState().activeUser !== name) {
+    useAppStore.setState({ activeUser: name });
+  }
+});
 
 // Demo data seeding
 async function seedDemoData(): Promise<{

@@ -1,5 +1,26 @@
 import type { ComplianceStatus } from "../theme";
 
+// --- Auth & Workspace types ---
+
+export type UserRole = "admin" | "user" | "viewer";
+
+export interface Workspace {
+  id: string;
+  name: string;
+  invite_code: string;
+  created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  workspace_id: string;
+  display_name: string;
+  role: UserRole;
+  created_at: string;
+}
+
+// --- Existing types ---
+
 export interface TemperatureDevice {
   id: string;
   name: string;

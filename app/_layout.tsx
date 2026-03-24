@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
   useFonts,
@@ -15,13 +15,40 @@ import * as SystemUI from "expo-system-ui";
 import * as SplashScreen from "expo-splash-screen";
 import { colors } from "../src/theme";
 import { useAppStore } from "../src/stores/appStore";
+import { useAuthStore } from "../src/stores/authStore";
 import { setupAllNotifications } from "../src/services/notificationService";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+function useAuthRedirect() {
+  const router = useRouter();
+  const segments = useSegments();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isOnboarded = useAuthStore((s) => s.isOnboarded);
+  const authLoading = useAuthStore((s) => s.loading);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    const inAuthGroup = segments[0] === "auth";
+    const inOnboardingGroup = segments[0] === "onboarding";
+
+    if (!isAuthenticated && !inAuthGroup) {
+      router.replace("/auth/login");
+    } else if (isAuthenticated && !isOnboarded && !inOnboardingGroup) {
+      router.replace("/onboarding/workspace");
+    } else if (isAuthenticated && isOnboarded && (inAuthGroup || inOnboardingGroup)) {
+      router.replace("/");
+    }
+  }, [isAuthenticated, isOnboarded, authLoading, segments, router]);
+}
+
 export default function RootLayout() {
   const hydrate = useAppStore((s) => s.hydrate);
   const hydrated = useAppStore((s) => s.hydrated);
+  const initializeAuth = useAuthStore((s) => s.initialize);
+  const authLoading = useAuthStore((s) => s.loading);
+
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -34,7 +61,8 @@ export default function RootLayout() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(colors.background);
     void hydrate();
-  }, [hydrate]);
+    void initializeAuth();
+  }, [hydrate, initializeAuth]);
 
   useEffect(() => {
     if (hydrated) {
@@ -43,12 +71,14 @@ export default function RootLayout() {
   }, [hydrated, deviations]);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && !authLoading) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, authLoading]);
 
-  if (!fontsLoaded && !fontError || !hydrated) {
+  useAuthRedirect();
+
+  if ((!fontsLoaded && !fontError) || !hydrated || authLoading) {
     return <View style={styles.loading} />;
   }
 
